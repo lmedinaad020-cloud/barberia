@@ -1,7 +1,7 @@
 const sb = window.supabaseClient;
 const $ = id => document.getElementById(id);
 let session=null, profile=null, settings={name:'BARBERÍA',yape_number:'',yape_name:'',qr_path:null};
-let barbers=[], services=[], cuts=[];
+let barbers=[], admins=[], services=[], cuts=[];
 let selectedCutServices=[];
 const today=()=>new Date().toISOString().slice(0,10);
 const money=n=>`S/ ${Number(n||0).toFixed(2)}`;
@@ -23,7 +23,7 @@ function showLogin(){$('loginView').classList.remove('hidden');$('appView').clas
 async function login(e){e.preventDefault();const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)toast(error.message)}
 async function enter(s){session=s; $('loginView').classList.add('hidden');$('appView').classList.remove('hidden'); try{await loadAll()}catch(e){console.error(e);toast(e.message||'No se pudo cargar la app')}}
 function isAdmin(){return profile?.role==='admin'}
-function trackedBarbers(){return isAdmin()?[...barbers,profile].filter(Boolean):barbers.filter(b=>b.id===session?.user?.id)}
+function trackedBarbers(){return isAdmin()?[...barbers,...admins]:barbers.filter(b=>b.id===session?.user?.id)}
 async function loadAll(){
   const p=await sb.from('barberia_usuarios').select('*').eq('id',session.user.id).maybeSingle(); if(p.error) throw p.error; profile=p.data;
   if(!profile){toast('Tu usuario existe en Auth pero aún no tiene perfil en barberia_usuarios.');return}
@@ -34,7 +34,7 @@ async function loadAll(){
 }
 async function loadSettings(){const {data,error}=await sb.from('barberia_config').select('*').limit(1).maybeSingle();if(error)throw error;if(data)settings=data;$('yapeNumber').textContent=settings.yape_number||'Configura tu número';if(settings.qr_path)await showQr(settings.qr_path);}
 async function showQr(path){const {data,error}=await sb.storage.from('barberia-comprobantes').createSignedUrl(path,3600);if(!error&&data?.signedUrl){$('yapeQr').innerHTML=`<button class="qr-trigger" type="button" aria-label="Ampliar QR de Yape"><img class="qr-img" src="${data.signedUrl}" alt="QR Yape"><span>Toca para ampliar</span></button>`;$('currentQr').innerHTML=`<p>QR actual:</p><button class="qr-trigger" type="button" aria-label="Ampliar QR de Yape"><img class="qr-img" src="${data.signedUrl}" alt="QR Yape"><span>Toca para ampliar</span></button>`;document.querySelectorAll('.qr-trigger').forEach(b=>b.addEventListener('click',()=>{$('largeQr').src=data.signedUrl;$('qrDialog').showModal()}))}}
-async function loadBarbers(){const {data,error}=await sb.from('barberia_usuarios').select('*').eq('role','barbero').eq('active',true).order('name');if(error)throw error;barbers=data||[];fillBarberSelects();renderBarbers()}
+async function loadBarbers(){const {data,error}=await sb.from('barberia_usuarios').select('*').eq('role','barbero').eq('active',true).order('name');if(error)throw error;barbers=data||[];if(isAdmin()){const result=await sb.from('barberia_usuarios').select('*').eq('role','admin').eq('active',true).order('name');if(result.error)throw result.error;admins=result.data||[]}else admins=[];fillBarberSelects();renderBarbers()}
 async function loadServices(){const {data,error}=await sb.from('barberia_servicios').select('*').order('name');if(error)throw error;services=data||[];fillServices();renderServices()}
 async function loadCuts(){let q=sb.from('barberia_cortes').select('*, barber:barberia_usuarios!barber_id(name), service:barberia_servicios!service_id(name)').order('created_at',{ascending:false});const {data,error}=await q.limit(1000);if(error)throw error;cuts=data||[]}
 function fillBarberSelects(){$('filterBarber').innerHTML='<option value="">Todos los barberos</option>'+barbers.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}
