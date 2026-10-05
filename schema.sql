@@ -56,6 +56,17 @@ create or replace function public.barberia_my_role() returns text language sql s
 $$;
 
 -- Lectura: cada usuario puede leer su perfil; admin puede administrar todo.
+drop policy if exists "barberia usuarios read" on public.barberia_usuarios;
+drop policy if exists "barberia usuarios admin insert" on public.barberia_usuarios;
+drop policy if exists "barberia usuarios admin update" on public.barberia_usuarios;
+drop policy if exists "barberia servicios read" on public.barberia_servicios;
+drop policy if exists "barberia servicios admin insert" on public.barberia_servicios;
+drop policy if exists "barberia servicios admin update" on public.barberia_servicios;
+drop policy if exists "barberia config read" on public.barberia_config;
+drop policy if exists "barberia config admin write" on public.barberia_config;
+drop policy if exists "barberia cortes read" on public.barberia_cortes;
+drop policy if exists "barberia cortes insert" on public.barberia_cortes;
+
 create policy "barberia usuarios read" on public.barberia_usuarios for select to authenticated using (active=true or id=auth.uid() or public.barberia_my_role()='admin');
 create policy "barberia usuarios admin insert" on public.barberia_usuarios for insert to authenticated with check (public.barberia_my_role()='admin');
 create policy "barberia usuarios admin update" on public.barberia_usuarios for update to authenticated using (public.barberia_my_role()='admin') with check (public.barberia_my_role()='admin');
@@ -68,11 +79,42 @@ create policy "barberia config read" on public.barberia_config for select to aut
 create policy "barberia config admin write" on public.barberia_config for all to authenticated using (public.barberia_my_role()='admin') with check (public.barberia_my_role()='admin');
 
 create policy "barberia cortes read" on public.barberia_cortes for select to authenticated using (barber_id=auth.uid() or public.barberia_my_role()='admin');
-create policy "barberia cortes insert" on public.barberia_cortes for insert to authenticated with check (barber_id=auth.uid() or public.barberia_my_role()='admin');
+create policy "barberia cortes insert" on public.barberia_cortes for insert to authenticated with check (public.barberia_my_role()='admin' or (barber_id=auth.uid() and public.barberia_my_role()='barbero'));
+
+-- El servidor calcula montos y comisión desde los datos vigentes, para que un
+-- navegador no pueda alterar precios o registrar cortes en nombre de otro.
+create or replace function public.barberia_calcular_corte() returns trigger
+language plpgsql security definer set search_path=public as $$
+declare
+  v_price numeric(10,2);
+  v_commission numeric(5,2);
+begin
+  select s.price, u.commission_percent
+    into v_price, v_commission
+    from public.barberia_servicios s
+    join public.barberia_usuarios u on u.id = new.barber_id
+   where s.id = new.service_id and s.active = true and u.active = true and u.role = 'barbero';
+  if not found then
+    raise exception 'El servicio o el barbero no están activos';
+  end if;
+  new.price := v_price;
+  new.commission_percent := v_commission;
+  new.barber_amount := round(v_price * v_commission / 100, 2);
+  new.shop_amount := v_price - new.barber_amount;
+  return new;
+end;
+$$;
+
+drop trigger if exists barberia_calcular_corte_trigger on public.barberia_cortes;
+create trigger barberia_calcular_corte_trigger
+before insert on public.barberia_cortes
+for each row execute function public.barberia_calcular_corte();
 
 -- Storage privado para comprobantes y QR.
 insert into storage.buckets (id,name,public) values ('barberia-comprobantes','barberia-comprobantes',false) on conflict (id) do nothing;
 
+drop policy if exists "barberia storage read" on storage.objects;
+drop policy if exists "barberia storage insert" on storage.objects;
 create policy "barberia storage read" on storage.objects for select to authenticated using (bucket_id='barberia-comprobantes' and (owner_id=auth.uid()::text or public.barberia_my_role()='admin'));
 create policy "barberia storage insert" on storage.objects for insert to authenticated with check (bucket_id='barberia-comprobantes');
 
