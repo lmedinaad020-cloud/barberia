@@ -94,7 +94,7 @@ begin
     into v_price, v_commission, v_service_name
     from public.barberia_servicios s
     join public.barberia_usuarios u on u.id = new.barber_id
-   where s.id = new.service_id and s.active = true and u.active = true and u.role = 'barbero';
+   where s.id = new.service_id and s.active = true and u.active = true and u.role in ('admin','barbero');
   if not found then
     raise exception 'El servicio o el barbero no están activos';
   end if;
