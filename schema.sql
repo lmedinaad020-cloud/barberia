@@ -88,14 +88,19 @@ language plpgsql security definer set search_path=public as $$
 declare
   v_price numeric(10,2);
   v_commission numeric(5,2);
+  v_service_name text;
 begin
-  select s.price, u.commission_percent
-    into v_price, v_commission
+  select s.price, u.commission_percent, s.name
+    into v_price, v_commission, v_service_name
     from public.barberia_servicios s
     join public.barberia_usuarios u on u.id = new.barber_id
    where s.id = new.service_id and s.active = true and u.active = true and u.role = 'barbero';
   if not found then
     raise exception 'El servicio o el barbero no están activos';
+  end if;
+  -- Barba y cejas: el 100% del servicio corresponde al barbero.
+  if translate(lower(v_service_name), 'áéíóúü', 'aeiouu') ~ '(barba|ceja)' then
+    v_commission := 100;
   end if;
   new.price := v_price;
   new.commission_percent := v_commission;

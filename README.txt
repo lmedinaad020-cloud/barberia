@@ -25,4 +25,5 @@ IMPORTANTE
 - Para aislamiento completo, crea otro proyecto Supabase para la barbería y reemplaza su URL y ANON KEY en supabaseClient.js antes de ejecutar schema.sql allí. Eso separa también las cuentas Auth y el almacenamiento.
 - La comisión queda guardada en cada corte para conservar el porcentaje histórico aunque después cambie la configuración.
 - El precio, la comisión y los montos de cada corte se calculan en Supabase mediante un trigger, aunque un navegador intente enviar otros valores.
+- Barba y cejas entregan el 100% de su precio al barbero. En instalaciones existentes, ejecuta una vez actualizar_barba_cejas.sql en el SQL Editor de Supabase para aplicar el cambio del trigger.
 - Los comprobantes se almacenan en el bucket privado barberia-comprobantes.
