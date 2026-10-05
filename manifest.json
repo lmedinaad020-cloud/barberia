@@ -1,0 +1,9 @@
+{
+  "name":"Barbería Control",
+  "short_name":"Barbería",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#f4f4f2",
+  "theme_color":"#111111",
+  "icons":[]
+}
